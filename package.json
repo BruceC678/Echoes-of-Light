@@ -1,0 +1,13 @@
+{
+  "name": "echoes-of-light",
+  "version": "1.0.0",
+  "description": "AI-powered 3D photo gallery using Gemini 2.5",
+  "main": "api/chat.js",
+  "scripts": {
+    "start": "echo 'This is a static site with serverless functions. Deploy to Vercel to run.'"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": "24.x"
+  }
+}

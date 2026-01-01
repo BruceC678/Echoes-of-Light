@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Echoes of Light | 光影志</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,800;1,400&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --theme-r: 10;
+            --theme-g: 8;
+            --theme-b: 5;
+            --bg-color: #050302; 
+            --accent-color: #ffd28e; 
+            --text-color: #ffffff;
+            --ui-glass: rgba(0, 0, 0, 0.5);
+            --font-main: 'Outfit', -apple-system, sans-serif;
+            --font-serif: 'EB Garamond', serif;
+        }
+
+        /* Hide scrollbars for immersion */
+        html, body {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        body::-webkit-scrollbar, 
+        .detail-story::-webkit-scrollbar {
+            display: none !important;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-main);
+            overflow-x: hidden;
+            min-height: 100vh;
+            width: 100%;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        #scroll-proxy {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 1000vh; 
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        #bg-layer {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            background: #000;
+        }
+
+        .bg-image {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            opacity: 0;
+            transition: opacity 2s cubic-bezier(0.25, 0.46, 0.45, 0.94); 
+            filter: blur(80px) brightness(28%) saturate(110%); 
+            transform: scale(1.3); 
+        }
+
+        .bg-image.active { opacity: 1; }
+
+        #canvas-world {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+            cursor: pointer;
+        }
+
+        #ui-layer {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: env(safe-area-inset-top, 2.5rem) 2.5rem env(safe-area-inset-bottom, 2.5rem) 2.5rem;
+        }
+
+        header {
+            opacity: 0;
+            animation: fadeIn 2.5s ease-out forwards 0.5s;
+            pointer-events: auto;
+            position: absolute;
+            top: 5.5%; 
+            left: 50%;
+            transform: translate(-50%, 0);
+            text-align: center;
+            transition: all 1.3s cubic-bezier(0.19, 1, 0.22, 1);
+            width: 95%; 
+            max-width: 900px;
+        }
+
+        body.discovery-active header {
+            top: 2.5rem;
+            left: 2.5rem;
+            transform: translate(0, 0);
+            text-align: left;
+            width: auto;
+            max-width: calc(100% - 13rem);
+        }
+
+        h1 {
+            font-family: var(--font-serif);
+            font-size: clamp(2.2rem, 8vw, 4.2rem);
+            font-weight: 400;
+            font-style: italic;
+            letter-spacing: -0.01em;
+            margin-bottom: 0.2rem;
+            background: linear-gradient(180deg, #fff 0%, #aaa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            transition: all 1.2s cubic-bezier(0.19, 1, 0.22, 1);
+        }
+
+        body.discovery-active h1 {
+            font-size: clamp(1.6rem, 5vw, 2.6rem);
+        }
+
+        .subtitle {
+            font-size: clamp(0.5rem, 1.8vw, 0.85rem);
+            color: rgba(255, 255, 255, 0.35);
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: clamp(1.5px, 0.7vw, 8px); 
+            white-space: nowrap; 
+            transition: all 1.3s cubic-bezier(0.19, 1, 0.22, 1);
+            display: block;
+            width: 100%;
+        }
+
+        body.discovery-active .subtitle {
+            letter-spacing: clamp(1px, 0.3vw, 3px);
+        }
+
+        .top-controls {
+            position: fixed;
+            top: 1.5rem; 
+            right: 1.5rem;
+            z-index: 50;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 20px;
+            pointer-events: auto;
+        }
+
+        #inline-process {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 8px 18px;
+            border-radius: 100px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            white-space: nowrap;
+        }
+        #inline-process.visible { display: flex; animation: slideInFade 0.6s cubic-bezier(0.23, 1, 0.32, 1); }
+
+        .process-dot {
+            width: 4px; height: 4px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            animation: pulse 1.8s infinite;
+            box-shadow: 0 0 10px var(--accent-color);
+        }
+
+        .process-text {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 500;
+        }
+
+        .lang-toggle {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: rgba(255, 255, 255, 0.7);
+            padding: 8px 18px;
+            border-radius: 100px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            backdrop-filter: blur(15px);
+            transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            font-family: var(--font-main);
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 50px;
+        }
+        .lang-toggle:hover { 
+            border-color: rgba(255, 255, 255, 0.4); 
+            color: #fff;
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateY(-2px);
+        }
+
+        @keyframes slideInFade { 
+            from { opacity: 0; transform: translateX(20px); } 
+            to { opacity: 1; transform: translateX(0); } 
+        }
+
+        #detail-panel { 
+            position: fixed; 
+            z-index: 5; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            transition: transform 1.2s cubic-bezier(0.19, 1, 0.22, 1); 
+            pointer-events: none; 
+            color: #fff; 
+            backdrop-filter: blur(45px); 
+        }
+        @media (min-width: 961px) { 
+            #detail-panel { top: 0; right: 0; width: 32%; height: 100%; padding: 12vh 4vw 8vh 4vw; transform: translateX(100%); border-left: 1px solid rgba(255, 255, 255, 0.05); background: linear-gradient(to right, transparent 0%, rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.94) 15%, rgba(var(--theme-r), var(--theme-g), var(--theme-b), 0.99) 100%); } 
+        }
+        @media (max-width: 960px) { 
+            #detail-panel { bottom: 0; left: 0; width: 100%; height: 45%; padding: 2rem; transform: translateY(100%); justify-content: flex-start; background: linear-gradient(to top, rgba(var(--theme-r), var(--theme-g), var(--theme-b), 1) 85%, transparent 100%); } 
+        }
+        #detail-panel.visible { transform: translate(0, 0); pointer-events: auto; }
+
+        .detail-story { 
+            font-size: 1rem; 
+            line-height: 1.9; 
+            color: rgba(255,255,255,0.6); 
+            font-weight: 300; 
+            overflow-y: auto; 
+            max-height: 50vh; 
+            padding-right: 5px; 
+        }
+
+        .detail-meta { font-size: 0.75rem; color: var(--accent-color); text-transform: uppercase; letter-spacing: 4px; margin-bottom: 1.2rem; font-weight: 600; }
+        .detail-title { font-family: var(--font-serif); font-size: clamp(1.6rem, 5vw, 2.8rem); font-weight: 400; font-style: italic; line-height: 1.1; margin-bottom: 2.2rem; color: #f0f0f0; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+        .footer-action { position: fixed; bottom: 0; left: 0; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 24px; padding-bottom: clamp(1.5rem, 5vh, 4rem); opacity: 0; animation: fadeIn 2s ease-out forwards 1.2s; pointer-events: none; z-index: 15; }
+        .upload-btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; padding: 14px 36px; background: rgba(255, 255, 255, 0.05); color: #fff; border: 1px solid rgba(255, 210, 142, 0.25); border-radius: 100px; font-size: 0.8rem; font-weight: 600; cursor: pointer; pointer-events: auto; text-transform: uppercase; letter-spacing: 2px; backdrop-filter: blur(10px); box-shadow: 0 10px 40px rgba(0,0,0,0.5); transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1); line-height: 1; }
+        .upload-btn:hover { background: rgba(255, 210, 142, 0.15); border-color: var(--accent-color); transform: translateY(-5px); box-shadow: 0 15px 30px rgba(255, 210, 142, 0.1); }
+        .btn-icon { font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; transform: translateY(-1px); }
+        body.gallery-loaded .upload-btn { padding: 10px 24px; font-size: 0.7rem; opacity: 0.4; transform: scale(0.9); }
+        body.gallery-loaded .upload-btn:hover { opacity: 1; transform: scale(1) translateY(-3px); }
+        .interaction-hint { display: flex; flex-direction: column; align-items: center; gap: 12px; opacity: 0; transition: opacity 1s; }
+        body.gallery-loaded:not(.scrolled) .interaction-hint { opacity: 0.4; }
+        body.scrolled .interaction-hint { opacity: 0 !important; }
+        .hint-line { width: 1px; height: 35px; background: linear-gradient(to bottom, transparent, var(--accent-color), transparent); animation: lineFlow 2s infinite; }
+        .hint-text { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 4px; color: var(--accent-color); font-weight: 400; }
+        #ai-loading-mask { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background: rgba(0, 0, 0, 0.88); backdrop-filter: blur(40px); display: none; flex-direction: column; align-items: center; justify-content: center; color: #fff; pointer-events: auto; }
+        #ai-loading-mask.visible { display: flex; animation: maskIn 0.8s ease-out; }
+        .mask-content { text-align: center; max-width: 90vw; width: 100%; display: flex; flex-direction: column; align-items: center; }
+        .mask-spinner { width: 45px; height: 45px; border: 1px solid rgba(255, 210, 142, 0.1); border-top: 1px solid var(--accent-color); border-radius: 50%; margin-bottom: 2.5rem; animation: spin 1.5s linear infinite; }
+        .mask-title { font-family: var(--font-serif); font-style: italic; font-size: 1.6rem; margin-bottom: 0.85rem; letter-spacing: 1px; opacity: 0.9; }
+        .mask-sub { font-size: 0.6rem; color: rgba(255, 255, 255, 0.4); text-transform: uppercase; letter-spacing: 3px; white-space: nowrap; }
+
+        #loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2000;
+            background: #000; display: flex; align-items: center; justify-content: center;
+            transition: opacity 1s;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="scroll-proxy"></div>
+    <div id="bg-layer"></div>
+    <canvas id="canvas-world"></canvas>
+
+    <div id="ai-loading-mask">
+        <div class="mask-content">
+            <div class="mask-spinner"></div>
+            <div class="mask-title" id="mask-status-title">Attuning to the Echoes</div>
+            <div class="mask-sub" id="mask-status-sub">Gleaning fragments of a silent era...</div>
+        </div>
+    </div>
+
+    <div class="top-controls">
+        <div id="inline-process">
+            <div class="process-dot"></div>
+            <span class="process-text" id="inline-status">Attuning</span>
+        </div>
+        <button id="lang-btn" class="lang-toggle" onclick="toggleLanguage()">中</button>
+    </div>
+
+    <div id="ui-layer">
+        <header id="ui-header">
+            <h1 id="ui-title">Echoes of Light</h1>
+            <div class="subtitle" id="ui-subtitle">Moments in Time | Chronicles of Light</div>
+        </header>
+
+        <div class="footer-action">
+            <div class="interaction-hint" id="scroll-hint">
+                <div class="hint-text" id="hint-text">Scroll to explore</div>
+                <div class="hint-line"></div>
+            </div>
+
+            <input type="file" id="file-input" multiple accept="image/*" style="display:none">
+            <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+                <span class="btn-icon">✧</span>
+                <span id="ui-btn-text">Open Gallery</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="detail-panel">
+        <div class="detail-meta" id="dt-meta">---</div>
+        <div class="detail-title" id="dt-title">Reading...</div>
+        <div class="detail-story" id="dt-story">Let the light tell its story.</div>
+    </div>
+
+    <div id="loader">
+        <div style="font-size: 0.85rem; letter-spacing: 15px; font-weight: 300; color: #444; text-transform: uppercase;">Echoes...</div>
+    </div>
+
+    <script>
+        // 安全起见，这里不再直接写 API Key
+        const TEXTS = {
+            en: {
+                title: "Echoes of Light",
+                subtitle: "Moments in Time | Chronicles of Light",
+                btnText: "Open Gallery",
+                btnTextMore: "Add Memories",
+                maskTitle: "Attuning to the Echoes",
+                maskSub: "Gleaning fragments of a silent era ({n}/{total})",
+                inlineStatus: "Attuning {n}/{total}",
+                toggleBtn: "中",
+                hintScroll: "Scroll to explore",
+                hintSwipe: "Swipe to explore",
+                defaultLoc: "Unknown Horizon"
+            },
+            zh: {
+                title: "光影回响",
+                subtitle: "时光纪实 | 记录每一个瞬间",
+                btnText: "开启画廊",
+                btnTextMore: "记录更多",
+                maskTitle: "正在校准光影的回响",
+                maskSub: "正在拾取静默时代的记忆碎片 ({n}/{total})",
+                inlineStatus: "光影显影 {n}/{total}",
+                toggleBtn: "EN",
+                hintScroll: "缓慢滚动探索",
+                hintSwipe: "滑动屏幕探索",
+                defaultLoc: "未知的视界"
+            }
+        };
+
+        let currentLang = 'en';
+        let isDiscoveryMode = false; 
+        let activeFocalIndex = -1; 
+        let cardHitboxes = [];
+        let uiTransitionFactor = 0; 
+        let firstUploadDone = false;
+        let hintDisabledPermanently = false; 
+        let currentEnvTheme = { r: 10, g: 8, b: 5 }; 
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'zh' : 'en';
+            const t = TEXTS[currentLang];
+            document.getElementById('ui-title').innerText = t.title;
+            document.getElementById('ui-subtitle').innerText = t.subtitle;
+            document.getElementById('ui-btn-text').innerText = firstUploadDone ? t.btnTextMore : t.btnText;
+            document.getElementById('lang-btn').innerText = t.toggleBtn;
+            updateHintText();
+            if (isDiscoveryMode) syncDetailUI();
+        }
+
+        function updateHintText() {
+            const isMobile = width < 960;
+            const t = TEXTS[currentLang];
+            document.getElementById('hint-text').innerText = isMobile ? t.hintSwipe : t.hintScroll;
+            if (hintDisabledPermanently) document.body.classList.add('scrolled');
+        }
+
+        function closeDetail() {
+            isDiscoveryMode = false;
+            document.body.classList.remove('discovery-active');
+            document.getElementById('detail-panel').classList.remove('visible');
+        }
+
+        function syncDetailUI() {
+            if (!isDiscoveryMode || activeFocalIndex === -1) return;
+            const item = MEMORIES[activeFocalIndex];
+            const isZh = currentLang === 'zh';
+            document.getElementById('dt-title').innerText = isZh ? (item.title_cn || item.title_en) : (item.title_en || item.title_cn);
+            document.getElementById('dt-meta').innerText = `${item.date} • ${isZh ? (item.location_cn || TEXTS.zh.defaultLoc) : (item.location_en || TEXTS.en.defaultLoc)}`;
+            document.getElementById('dt-story').innerText = isZh ? (item.story_cn || "光影微澜，记忆永恒。") : (item.story_en || "A fragment of time preserved in light.");
+            document.getElementById('detail-panel').classList.add('visible');
+        }
+
+        const CONFIG = {
+            scrollSpeed: 2.8, 
+            itemSpacing: 2500, 
+            smoothLerp: 0.05,
+            magneticStrength: 0.06, 
+            magneticRange: 800,
+            pathAmp: 300,
+            floatSpeed: 0.001
+        };
+
+        let MEMORIES = [
+            { date: "2025.01.01", location_en: "Initial Horizon", location_cn: "初始视界", title_en: "The First Echo", title_cn: "最初的回响", story_en: "Where the light began its journey.", story_cn: "光芒由此开启旅程。", image: "demo1", theme: {r:40,g:35,b:30} }
+        ];
+
+        const canvas = document.getElementById('canvas-world');
+        const ctx = canvas.getContext('2d');
+        const scrollProxy = document.getElementById('scroll-proxy');
+        const bgLayer = document.getElementById('bg-layer');
+        
+        let width, height, dpr;
+        let scrollY = 0, targetScrollY = 0; 
+        let camera = { x: 0, y: 0, z: 0 };
+        const loadedImages = {}, rawFiles = {}, bgImagesElements = {}; 
+        const OPTIMAL_VIEW_DIST = 450; 
+        const CANVAS_FONT_MAIN = 'Outfit, sans-serif';
+        const CANVAS_FONT_SERIF = 'EB Garamond, serif';
+
+        function roundedRect(ctx, x, y, width, height, radius) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y); ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + width, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+        }
+
+        function getLines(ctx, text, maxWidth, isZh) {
+            const words = isZh ? text.split('') : text.split(' ');
+            let line = '', lines = [];
+            for (let n = 0; n < words.length; n++) {
+                let testLine = line + words[n] + (isZh ? '' : ' ');
+                if (ctx.measureText(testLine).width > maxWidth && n > 0) {
+                    lines.push(line.trim()); line = words[n] + (isZh ? '' : ' ');
+                } else { line = testLine; }
+            }
+            lines.push(line.trim());
+            return lines;
+        }
+
+        function resize() {
+            dpr = window.devicePixelRatio || 1;
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.scale(dpr, dpr);
+            updateScrollHeight();
+            updateHintText();
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        window.addEventListener('scroll', () => { 
+            targetScrollY = window.scrollY; 
+            if (targetScrollY > 20) {
+                document.body.classList.add('scrolled');
+                if (firstUploadDone) hintDisabledPermanently = true;
+            }
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (isDiscoveryMode) { closeDetail(); return; }
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            for (let i = cardHitboxes.length - 1; i >= 0; i--) {
+                const h = cardHitboxes[i];
+                if (clickX >= h.x && clickX <= h.x + h.w && clickY >= h.y && clickY <= h.y + h.h) {
+                    if (h.relZ < 1500) {
+                        isDiscoveryMode = true;
+                        activeFocalIndex = h.index;
+                        document.body.classList.add('discovery-active');
+                        syncDetailUI();
+                        return;
+                    }
+                }
+            }
+        });
+
+        document.getElementById('file-input').addEventListener('change', async function(e) {
+            const files = Array.from(e.target.files);
+            if(files.length === 0) return;
+            if (!firstUploadDone) { MEMORIES = []; bgLayer.innerHTML = ''; }
+            else { hintDisabledPermanently = true; }
+            const startIndex = MEMORIES.length;
+            document.body.classList.add('gallery-loaded');
+            if (hintDisabledPermanently) document.body.classList.add('scrolled');
+            document.getElementById('ui-btn-text').innerText = TEXTS[currentLang].btnTextMore;
+            files.forEach((file, index) => {
+                const globalIndex = startIndex + index;
+                const mem = {
+                    filename: file.name, date: "---", location_en: "", location_cn: "", 
+                    title_en: file.name.split('.')[0], title_cn: "感悟中",
+                    story_en: "", story_cn: "", image: file.name, theme: {r:30,g:25,b:20}
+                };
+                rawFiles[file.name] = file;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const img = new Image();
+                    img.onload = () => { loadedImages[file.name] = img; };
+                    img.src = ev.target.result;
+                    img.src = ev.target.result;
+                    const bgImg = document.createElement('img');
+                    bgImg.src = ev.target.result; bgImg.className = 'bg-image'; bgImg.id = `bg-${globalIndex}`;
+                    bgLayer.appendChild(bgImg); bgImagesElements[globalIndex] = bgImg;
+                    EXIF.getData(file, function() {
+                        const d = EXIF.getTag(this, "DateTimeOriginal");
+                        if (d) mem.date = d.split(" ")[0].replace(/:/g, ".");
+                    });
+                };
+                reader.readAsDataURL(file);
+                MEMORIES.push(mem);
+            });
+            updateScrollHeight();
+            if (!firstUploadDone) { window.scrollTo(0,0); targetScrollY = scrollY = camera.z = 0; }
+            processAI(startIndex);
+        });
+
+        async function processAI(startIndex = 0) {
+            const mask = document.getElementById('ai-loading-mask');
+            const inlineProcess = document.getElementById('inline-process');
+            const inlineStatus = document.getElementById('inline-status');
+            const isFirstTime = !firstUploadDone;
+            const t = TEXTS[currentLang];
+            if (isFirstTime) mask.classList.add('visible');
+            else { inlineProcess.classList.add('visible'); inlineStatus.innerText = t.inlineStatus.split(' ')[0]; }
+            const totalToProcess = MEMORIES.length - startIndex;
+            for (let i = startIndex; i < MEMORIES.length; i++) {
+                const currentCount = i - startIndex + 1;
+                const statusStr = t.maskSub.replace('{n}', currentCount).replace('{total}', totalToProcess);
+                const inlineStr = t.inlineStatus.replace('{n}', currentCount).replace('{total}', totalToProcess);
+                if (isFirstTime) document.getElementById('mask-status-sub').innerText = statusStr;
+                else inlineStatus.innerText = inlineStr;
+                try {
+                    const b64 = await fileToB64(rawFiles[MEMORIES[i].filename]);
+                    const res = await callGemini(b64);
+                    if (res) {
+                        MEMORIES[i].title_en = res.title_en; MEMORIES[i].title_cn = res.title_cn;
+                        MEMORIES[i].location_en = res.location_en; MEMORIES[i].location_cn = res.location_cn;
+                        MEMORIES[i].story_en = res.story_en; MEMORIES[i].story_cn = res.story_cn;
+                        MEMORIES[i].theme = res.theme;
+                        if(isDiscoveryMode && i === activeFocalIndex) syncDetailUI();
+                    }
+                } catch(e){}
+            }
+            firstUploadDone = true;
+            setTimeout(() => { mask.classList.remove('visible'); inlineProcess.classList.remove('visible'); }, 1000);
+        }
+
+        // 修改后的 callGemini：请求自建后端
+        async function callGemini(base64Image) {
+            try {
+                const r = await fetch('/api/chat', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ base64Image }) 
+                });
+                if (r.ok) return await r.json();
+            } catch (e) { console.error("Fetch error:", e); }
+            return null;
+        }
+
+        function fileToB64(f) { return new Promise((res) => { const r = new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.readAsDataURL(f); }); }
+
+        function getPathPoint(z) {
+            const isMobile = width < 960;
+            const targetXOffset = isMobile ? 0 : (-width * 0.15); 
+            const targetYOffset = isMobile ? (-height * 0.22) : 0; 
+            const pathOffsetX = uiTransitionFactor * targetXOffset;
+            const pathOffsetY = uiTransitionFactor * targetYOffset;
+            return {
+                x: Math.sin(z * 0.0008) * CONFIG.pathAmp + Math.cos(z * 0.0004) * (CONFIG.pathAmp * 0.7) + pathOffsetX,
+                y: Math.cos(z * 0.0006) * 100 + pathOffsetY,
+                z: z
+            };
+        }
+
+        function project(x, y, z) {
+            const fov = 950; const s = fov / (fov + z);
+            return { x: x*s + width/2, y: y*s + height/2, s, visible: z > -fov };
+        }
+
+        function lerp(a, b, t) { return a * (1 - t) + b * t; }
+
+        function drawCard(item, relX, relY, relZ, p2d, time, index) {
+            const isMobile = width < 960;
+            const baseHFactor = lerp(0.68, isMobile ? 0.48 : 0.75, uiTransitionFactor); 
+            const targetMaxH = height * baseHFactor; 
+            
+            let imgAspect = 0.66, imgObj = loadedImages[item.image];
+            if (imgObj) imgAspect = imgObj.height / imgObj.width;
+
+            let cardH = targetMaxH; 
+            let cardW = cardH / imgAspect;
+
+            if (!isDiscoveryMode) {
+                const homeMaxWFactor = isMobile ? 0.90 : 0.62; 
+                const maxW = width * homeMaxWFactor;
+                if (cardW > maxW) { cardW = maxW; cardH = cardW * imgAspect; }
+            } else {
+                const discoveryMaxWFactor = isMobile ? 0.92 : 0.68;
+                const maxW = width * discoveryMaxWFactor;
+                if (cardW > maxW) { cardW = maxW; cardH = cardW * imgAspect; }
+            }
+
+            const distToCenter = Math.abs(relZ - OPTIMAL_VIEW_DIST);
+            const isFocal = index === activeFocalIndex;
+            let displayX = relX;
+            if (distToCenter < 1200) {
+                let factor = 1 - (distToCenter / 1200);
+                factor = factor * factor * (3 - 2 * factor);
+                const focalTargetX = isMobile ? 0 : (uiTransitionFactor * (-width * 0.22)); 
+                displayX = lerp(displayX, focalTargetX, factor);
+            }
+
+            const hover = Math.sin(time * 0.001 + index) * 10;
+            const proj = project(displayX, relY - 20 + hover, relZ);
+            
+            let focusBoost = 1.0;
+            if (isDiscoveryMode) { focusBoost = 1.0; } else {
+                const zoomRange = 1200; 
+                if (distToCenter < zoomRange) {
+                    let t = 1 - (distToCenter / zoomRange);
+                    const smoothT = t * t * (3 - 2 * t);
+                    focusBoost = 1.0 + (smoothT * 0.18); 
+                }
+            }
+            const finalS = proj.s * focusBoost;
+
+            let alpha = 1;
+            if (isDiscoveryMode) {
+                if (isFocal) alpha = 1; else {
+                    const d = Math.abs(relZ - OPTIMAL_VIEW_DIST);
+                    alpha = Math.max(0, 1 - d / 100) * 0.05; 
+                }
+            } else {
+                if (relZ > 800) alpha = Math.max(0, 1 - Math.pow((relZ - 800) / 1500, 1.2));
+                if (relZ < 150) alpha = Math.max(0, (relZ - 50) / 100);
+            }
+
+            if (alpha <= 0.001) return;
+
+            const finalW = cardW * finalS, finalH = cardH * finalS;
+            const x = proj.x - finalW/2, y = proj.y - finalH/2;
+            cardHitboxes.push({ x, y, w: finalW, h: finalH, index, relZ });
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.shadowBlur = 80 * proj.s; ctx.shadowColor = 'rgba(0,0,0,1)';
+            roundedRect(ctx, x, y, finalW, finalH, 20 * proj.s);
+            ctx.fillStyle = '#080503'; ctx.fill();
+            ctx.clip();
+            if (imgObj) ctx.drawImage(imgObj, x, y, finalW, finalH);
+            else { ctx.fillStyle='#120f0c'; ctx.fillRect(x,y,finalW,finalH); }
+
+            if (firstUploadDone && (!isDiscoveryMode || (isDiscoveryMode && !isFocal))) {
+                const overlayAlpha = isDiscoveryMode ? 0.001 : alpha; ctx.globalAlpha = overlayAlpha;
+                const gradH = Math.min(finalH * 0.6, 350 * finalS);
+                const g = ctx.createLinearGradient(0, y+finalH-gradH, 0, y+finalH);
+                g.addColorStop(0, 'transparent'); g.addColorStop(1, `rgba(${currentEnvTheme.r * 0.5}, ${currentEnvTheme.g * 0.5}, ${currentEnvTheme.b * 0.5}, 0.95)`);
+                ctx.fillStyle = g; ctx.fillRect(x, y+finalH-gradH, finalW, gradH);
+                ctx.textAlign = 'left';
+                const isZh = currentLang === 'zh';
+                const basePadding = 45, tx = x + basePadding * finalS;
+                const activeTitle = isZh ? (item.title_cn || "未命名") : (item.title_en || "Untitled");
+                const activeLoc = isZh ? (item.location_cn || "未知境地") : (item.location_en || "Unknown");
+                ctx.font = `500 ${18 * finalS}px ${CANVAS_FONT_MAIN}`;
+                const metaLines = getLines(ctx, `${item.date} • ${activeLoc}`, cardW - 90, isZh);
+                ctx.font = `italic 400 ${34 * finalS}px ${CANVAS_FONT_SERIF}`;
+                const titleLines = getLines(ctx, activeTitle, cardW - 90, isZh);
+                let dy = y + finalH - basePadding * finalS;
+                ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = `500 ${18 * finalS}px ${CANVAS_FONT_MAIN}`;
+                for (let i = metaLines.length - 1; i >= 0; i--) { ctx.fillText(metaLines[i], tx, dy); dy -= (18 * 1.4 * finalS); }
+                ctx.fillStyle = '#fff'; ctx.font = `italic 400 ${34 * finalS}px ${CANVAS_FONT_SERIF}`;
+                dy -= (12 * finalS);
+                for (let i = titleLines.length - 1; i >= 0; i--) { ctx.fillText(titleLines[i], tx, dy); dy -= (34 * 1.2 * finalS); }
+            }
+            ctx.restore();
+        }
+
+        function animate() {
+            const time = Date.now();
+            scrollY = lerp(scrollY, targetScrollY, CONFIG.smoothLerp);
+            uiTransitionFactor = lerp(uiTransitionFactor, isDiscoveryMode ? 1 : 0, 0.07);
+            let rawZ = scrollY * CONFIG.scrollSpeed;
+            let magZ = rawZ;
+            let closestIdx = -1, minCenterDist = Infinity;
+            for (let i = 0; i < MEMORIES.length; i++) {
+                let iz = (i === 0) ? 500 : i * CONFIG.itemSpacing + 600;
+                let idz = iz - OPTIMAL_VIEW_DIST;
+                if (Math.abs(rawZ - idz) < CONFIG.magneticRange) { magZ = idz + (rawZ - idz) * 0.045; }
+                let currentDist = Math.abs((iz - camera.z) - OPTIMAL_VIEW_DIST);
+                if(currentDist < minCenterDist) { minCenterDist = currentDist; closestIdx = i; }
+            }
+            camera.z = magZ;
+            if (isDiscoveryMode && closestIdx !== -1 && closestIdx !== activeFocalIndex) { activeFocalIndex = closestIdx; syncDetailUI(); }
+            if (closestIdx !== -1 && MEMORIES[closestIdx]) {
+                const targetTheme = MEMORIES[closestIdx].theme || {r:30,g:25,b:20};
+                currentEnvTheme.r = lerp(currentEnvTheme.r, targetTheme.r, 0.03); currentEnvTheme.g = lerp(currentEnvTheme.g, targetTheme.g, 0.03); currentEnvTheme.b = lerp(currentEnvTheme.b, targetTheme.b, 0.03);
+                const darkening = 0.35; 
+                document.documentElement.style.setProperty('--theme-r', Math.floor(currentEnvTheme.r * darkening)); document.documentElement.style.setProperty('--theme-g', Math.floor(currentEnvTheme.g * darkening)); document.documentElement.style.setProperty('--theme-b', Math.floor(currentEnvTheme.b * darkening));
+            }
+            const p = getPathPoint(camera.z + 700);
+            camera.x = lerp(camera.x, p.x, 0.04); camera.y = lerp(camera.y, p.y, 0.04);
+            Object.values(bgImagesElements).forEach(el => el.style.opacity = 0);
+            if (closestIdx !== -1 && minCenterDist < 1600) {
+                const op = Math.max(0, 1 - minCenterDist/1300); if(bgImagesElements[closestIdx]) bgImagesElements[closestIdx].style.opacity = op;
+            }
+            ctx.clearRect(0,0,width,height);
+            const r = Math.floor(currentEnvTheme.r * 0.4), g = Math.floor(currentEnvTheme.g * 0.4), b = Math.floor(currentEnvTheme.b * 0.4);
+            ctx.fillStyle = `rgba(${r + 10}, ${g + 8}, ${b + 5}, 0.7)`; ctx.fillRect(0,0,width,height);
+            const sector = Math.floor(camera.z / 3000);
+            for(let i=0; i<60; i++) {
+                const seed = (i + sector * 100) * 9301 + 49297;
+                const r1 = (seed % 10000) / 10000, r2 = ((seed * 3) % 10000) / 10000;
+                const pz = (sector * 3000) + (r1 * 3000), relZ = pz - camera.z;
+                if(relZ > 0 && relZ < 4500) {
+                    const pr = project((r2-0.5)*4000, Math.sin(time*0.0004+i)*1000, relZ);
+                    ctx.fillStyle = `rgba(${currentEnvTheme.r + 150}, ${currentEnvTheme.g + 130}, ${currentEnvTheme.b + 110}, ${0.15 * (1-relZ/4500)})`;
+                    ctx.beginPath(); ctx.arc(pr.x, pr.y, 1.5 * pr.s, 0, 7); ctx.fill();
+                }
+            }
+            ctx.beginPath(); ctx.lineWidth = 1.2; 
+            ctx.strokeStyle = `rgba(${currentEnvTheme.r + 100}, ${currentEnvTheme.g + 80}, ${currentEnvTheme.b + 60}, ${0.12 * (1-uiTransitionFactor)})`;
+            let first = true;
+            for(let z = camera.z + 50; z < camera.z + 4000; z += 35) {
+                const pt = getPathPoint(z); const pr = project(pt.x - camera.x, pt.y - camera.y, z - camera.z);
+                if (first) { ctx.moveTo(pr.x, pr.y); first = false; } else ctx.lineTo(pr.x, pr.y);
+            }
+            ctx.stroke();
+            cardHitboxes = [];
+            const items = MEMORIES.map((m, i) => {
+                let iz = (i === 0) ? 500 : i * CONFIG.itemSpacing + 600;
+                const pt = getPathPoint(iz);
+                return { data: m, i, x: pt.x - camera.x, y: pt.y - camera.y, z: iz - camera.z };
+            }).filter(it => it.z > -400 && it.z < 4500).sort((a,b) => b.z - a.z);
+            items.forEach(it => { const p2d = project(it.x, it.y, it.z); drawCard(it.data, it.x, it.y, it.z, p2d, time, it.i); });
+            requestAnimationFrame(animate);
+        }
+
+        function updateScrollHeight() {
+            const totalZ = MEMORIES.length * CONFIG.itemSpacing + 3000;
+            scrollProxy.style.height = `${(totalZ / CONFIG.scrollSpeed) + height}px`;
+        }
+
+        const loader = document.getElementById('loader');
+        setTimeout(() => { loader.style.opacity = 0; setTimeout(()=>loader.remove(), 1000); updateHintText(); }, 2200);
+        animate();
+    </script>
+</body>
+</html>
